@@ -372,7 +372,9 @@ export function useReducer<S, A>(
   let queue: UpdateQueue<A> | null = (workInProgressHook.queue: any);
   if (queue !== null) {
     // Already have a queue, so this is an update.
+    // isReRender 的 赋值 可以看 createWorkInProgressHook
     if (isReRender) {
+      // 是否是在 render 的过程中创建的 update
       // This is a re-render. Apply the new render phase updates to the previous
       // work-in-progress hook.
       const dispatch: Dispatch<A> = (queue.dispatch: any);
@@ -411,6 +413,7 @@ export function useReducer<S, A>(
     // The last update in the entire queue
     const last = queue.last;
     // The last update that is part of the base state.
+    // 第二次api 掉用进来 baseUpdate = null
     const baseUpdate = workInProgressHook.baseUpdate;
 
     // Find the first unprocessed update.
@@ -435,39 +438,50 @@ export function useReducer<S, A>(
       let didSkip = false;
       do {
         const updateExpirationTime = update.expirationTime;
+        // 16.8 的版本 关于expirationTime 的 计算和 优先级的比较相比于 16.6 版本 有所不同
+        // 16.8 版本是 expirationTime 越 小 优先级越低  和 16.6 完全相反(expirationTime 越 大 优先级越低)
         if (updateExpirationTime < renderExpirationTime) {
+          // 这个 updateExpirationTime 优先级 低的话 要跳过
           // Priority is insufficient. Skip this update. If this is the first
           // skipped update, the previous update/state is the new base
           // update/state.
           if (!didSkip) {
             didSkip = true;
+            // 记录的是 第一个被跳过的更新的前一个更新的状态
             newBaseUpdate = prevUpdate;
             newBaseState = newState;
           }
           // Update the remaining priority in the queue.
+          // remaining 剩下
           if (updateExpirationTime > remainingExpirationTime) {
             remainingExpirationTime = updateExpirationTime;
           }
         } else {
           // Process this update.
+          // 需要被更新
           const action = update.action;
+          // 会计算出一个新的state
+          // action 是什么？
           newState = reducer(newState, action);
         }
         prevUpdate = update;
         update = update.next;
       } while (update !== null && update !== first);
+      // 上面这个 do while 循环就是操作完 queue中的整个链表
 
       if (!didSkip) {
         newBaseUpdate = prevUpdate;
         newBaseState = newState;
       }
 
+      // 设置 新的 state
       workInProgressHook.memoizedState = newState;
       workInProgressHook.baseUpdate = newBaseUpdate;
       workInProgressHook.baseState = newBaseState;
     }
 
     const dispatch: Dispatch<A> = (queue.dispatch: any);
+    // return 一个 更新过后的 state
     return [workInProgressHook.memoizedState, dispatch];
   }
 
