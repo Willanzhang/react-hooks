@@ -274,6 +274,9 @@ function cloneHook(hook: Hook): Hook {
 }
 
 function createWorkInProgressHook(): Hook {
+  // 第一次进来是 workInProgressHook = null  
+  // 因为 上一次 hook functionConponent 的调用 会把全局变量 workInProgressHook 置空
+  // 所以 执行 任意一个hook functionConponent 调用的 第一个 hook api  workInProgressHook 肯定是等于null
   if (workInProgressHook === null) {
     // This is the first hook in the list
     if (firstWorkInProgressHook === null) {
@@ -281,6 +284,7 @@ function createWorkInProgressHook(): Hook {
       currentHook = firstCurrentHook;
       if (currentHook === null) {
         // This is a newly mounted hook
+        // 当前 hook functionConponent 第一调用 hook api  因为workInProgressHook 链为空，这里会新创建一个 hook 对象
         workInProgressHook = createHook();
       } else {
         // Clone the current hook.
@@ -359,7 +363,12 @@ export function useReducer<S, A>(
   initialAction: A | void | null,
 ): [S, Dispatch<A>] {
   currentlyRenderingFiber = resolveCurrentlyRenderingFiber();
+  // 每执行一个 hook 方法 都会创建一个 hook 对象 这里处理 workInProgressHook 链
+  // 可以把 workInProgressHook 链看成 是更小粒度的 fiber
+  // fiber 的更新是在 updateQueue 上  是针对fiber 
+  // workInProgressHook 的更新 是针对 hook 使用对象上   在 workInProgressHook 有queue 链表 代表更新列表
   workInProgressHook = createWorkInProgressHook();
+  // hook functionComponent 执行 第一次 hook api 的时候 queue 是 null
   let queue: UpdateQueue<A> | null = (workInProgressHook.queue: any);
   if (queue !== null) {
     // Already have a queue, so this is an update.
@@ -463,7 +472,10 @@ export function useReducer<S, A>(
   }
 
   // There's no existing queue, so this is the initial render.
+  // 初始化 第一次调用hook api的时候会走这里
+  // 后面的调用都不会走下面流程
   if (reducer === basicStateReducer) {
+    // 为 useState 执行
     // Special case for `useState`.
     if (typeof initialState === 'function') {
       initialState = initialState();
@@ -476,11 +488,13 @@ export function useReducer<S, A>(
     last: null,
     dispatch: null,
   };
+  // dispatch 是个重点
   const dispatch: Dispatch<A> = (queue.dispatch = (dispatchAction.bind(
     null,
     currentlyRenderingFiber,
     queue,
   ): any));
+  // 这里就是 使用 useState 返回的数组
   return [workInProgressHook.memoizedState, dispatch];
 }
 
@@ -645,6 +659,7 @@ export function useMemo<T>(
   return nextValue;
 }
 
+// 派发行为
 function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
   invariant(
     numberOfReRenders < RE_RENDER_LIMIT,
@@ -657,6 +672,7 @@ function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
     fiber === currentlyRenderingFiber ||
     (alternate !== null && alternate === currentlyRenderingFiber)
   ) {
+    // 假如是更新阶段产生了 update
     // This is a render phase update. Stash it in a lazily-created map of
     // queue -> linked list of updates. After this render pass, we'll restart
     // and apply the stashed updates on top of the work-in-progress hook.
@@ -690,11 +706,15 @@ function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
     };
     flushPassiveEffects();
     // Append the update to the end of the list.
+    // last 就是 对应的 workInProgressHook 对象 上的 queue 的 last 属性  
+    // last 所有的 update中最后的那一个
     const last = queue.last;
+    // 这个 if 的 判断 是为了在 queue 中形成一个循环的链表
     if (last === null) {
       // This is the first update. Create a circular list.
       update.next = update;
     } else {
+      // 通过 last.next 指定 first
       const first = last.next;
       if (first !== null) {
         // Still circular.
@@ -703,6 +723,8 @@ function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
       last.next = update;
     }
     queue.last = update;
+    // 也会 发起一次 scheduleWork  和 setState 一样的 
+    // 进入一个更新的流程 调用updateFunctionComponent
     scheduleWork(fiber, expirationTime);
   }
 }

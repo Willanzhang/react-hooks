@@ -507,7 +507,8 @@ function updateFunctionComponent(
   let nextChildren;
   // 因为在 Hooks API中是有读取 context的能力的 因此也要在这里处理contextDependency
   prepareToReadContext(workInProgress, renderExpirationTime);
-  // 先是要 prepare 
+  // 先是要 prepare 16.8 正式版本已经不是这样了 去掉了prepareToUseHooks
+  // 而是在 执行 functionComponent 的时候 用 renderWithHooks 代替了
   prepareToUseHooks(current, workInProgress, renderExpirationTime);
   if (__DEV__) {
     ReactCurrentOwner.current = workInProgress;
