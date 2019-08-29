@@ -117,6 +117,7 @@ function resolveCurrentlyRenderingFiber(): Fiber {
   return currentlyRenderingFiber;
 }
 
+// 初始化这个模块的共工变量
 export function prepareToUseHooks(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -126,7 +127,12 @@ export function prepareToUseHooks(
     return;
   }
   renderExpirationTime = nextRenderExpirationTime;
+  // currentlyRenderingFiber 对应当前正在执行的 functionComponent 的 fiber对象
   currentlyRenderingFiber = workInProgress;
+  // 判断是不是 第一次渲染  
+  // 在classComponent 中 memoizedState是用来记录这个component对应的是 上次 state 的属性
+  // 在 functionComponent 在我们使用 Hooks 的时候 他是用来记录 在这个 functionComponent 中调用的 第一个 Hooks api对应的对象（也是一个链表结构） 
+  // 按顺序存储每一次 Hooks api 调用的 过程中 这个 API 对应的对象
   firstCurrentHook = current !== null ? current.memoizedState : null;
 
   // The following should have already been reset
@@ -154,7 +160,8 @@ export function finishHooks(
 
   // This must be called after every function component to prevent hooks from
   // being used in classes.
-
+  // 执行functionComponent 的过程中 还没有触发事件的收就去调用 一个setName  这就导致在渲染过程中产生了 update
+  // didScheduleRenderPhaseUpdate 就是判断是否在渲染过程中 产生了update 它会在这个节点把update 处理掉， 不会留到下一次更新
   while (didScheduleRenderPhaseUpdate) {
     // Updates were scheduled during the render phase. They are stored in
     // the `renderPhaseUpdates` map. Call the component again, reusing the
@@ -175,10 +182,15 @@ export function finishHooks(
 
   const renderedWork: Fiber = (currentlyRenderingFiber: any);
 
+  // 对应 这个functionComponent 中的每一个Hooks 都有个 WorkInProgressHook 对象
+  // 每一个 Hooks 会记录 各自的一些对象属性
   renderedWork.memoizedState = firstWorkInProgressHook;
+
+  // 待续
   renderedWork.expirationTime = remainingExpirationTime;
   renderedWork.updateQueue = (componentUpdateQueue: any);
 
+  // 下面是一些状态的重置
   const didRenderTooFewHooks =
     currentHook !== null && currentHook.next !== null;
 
@@ -333,6 +345,7 @@ export function useContext<T>(
 export function useState<S>(
   initialState: (() => S) | S,
 ): [S, Dispatch<BasicStateAction<S>>] {
+  // 这里知道 useState 是 关于 useReducer的封装
   return useReducer(
     basicStateReducer,
     // useReducer has a special case to support lazy useState initializers

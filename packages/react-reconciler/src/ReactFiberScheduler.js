@@ -1208,6 +1208,7 @@ function renderRoot(root: FiberRoot, isYieldy: boolean): void {
   flushPassiveEffects();
 
   isWorking = true;
+  // react 16.8 的版本 已经是true
   if (enableHooks) {
     ReactCurrentOwner.currentDispatcher = Dispatcher;
   } else {

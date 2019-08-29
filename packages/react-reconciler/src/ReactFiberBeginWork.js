@@ -505,7 +505,9 @@ function updateFunctionComponent(
   const context = getMaskedContext(workInProgress, unmaskedContext);
 
   let nextChildren;
+  // 因为在 Hooks API中是有读取 context的能力的 因此也要在这里处理contextDependency
   prepareToReadContext(workInProgress, renderExpirationTime);
+  // 先是要 prepare 
   prepareToUseHooks(current, workInProgress, renderExpirationTime);
   if (__DEV__) {
     ReactCurrentOwner.current = workInProgress;
@@ -513,8 +515,11 @@ function updateFunctionComponent(
     nextChildren = Component(nextProps, context);
     setCurrentPhase(null);
   } else {
+    // 中间是调用 functionComponent
+    // 此处调用 functionComponent
     nextChildren = Component(nextProps, context);
   }
+  // 然后 finish
   nextChildren = finishHooks(Component, nextProps, nextChildren, context);
 
   // React DevTools reads this flag.
