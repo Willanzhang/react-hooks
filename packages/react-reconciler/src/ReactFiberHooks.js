@@ -522,6 +522,7 @@ export function useReducer<S, A>(
   return [workInProgressHook.memoizedState, dispatch];
 }
 
+// 其实就是在componentUpdateQueue 构建 effect 的循环链表
 function pushEffect(tag, create, destroy, inputs) {
   const effect: Effect = {
     tag,
@@ -531,8 +532,12 @@ function pushEffect(tag, create, destroy, inputs) {
     // Circular
     next: (null: any),
   };
+  // 每一个 fiber对象 对应一个 componentUpdateQueue
+  // 所有的 useEffect 的结果（effect） 都会保存在 componentUpdateQueue上面
   if (componentUpdateQueue === null) {
+    // createFunctionComponentUpdateQueue()  return {lastEffect: null};
     componentUpdateQueue = createFunctionComponentUpdateQueue();
+    // 和useState 的 queue 一样是 循环链表
     componentUpdateQueue.lastEffect = effect.next = effect;
   } else {
     const lastEffect = componentUpdateQueue.lastEffect;
@@ -576,6 +581,8 @@ export function useEffect(
   create: () => mixed,
   inputs: Array<mixed> | void | null,
 ): void {
+  // UpdateEffect 其实就是 sideEffectTags中的Update
+  // Passive: 被动
   useEffectImpl(
     UpdateEffect | PassiveEffect,
     UnmountPassive | MountPassive,
@@ -585,21 +592,32 @@ export function useEffect(
 }
 
 function useEffectImpl(fiberEffectTag, hookEffectTag, create, inputs): void {
+  // 获取 当前这个 fiber
   currentlyRenderingFiber = resolveCurrentlyRenderingFiber();
+  // 创建 hook对象
   workInProgressHook = createWorkInProgressHook();
 
   let nextInputs = inputs !== undefined && inputs !== null ? inputs : [create];
   let destroy = null;
   if (currentHook !== null) {
+    // currentHook !== null 说明不是第一次渲染
     const prevEffect = currentHook.memoizedState;
     destroy = prevEffect.destroy;
+    // 不是第一次渲染 就会进行对比，nextInputs 和上一次的 更新完成后的状态
+    // areHookInputsEqual 就是通过 Object.is 对比 两个数组中的值， 是否相等
     if (areHookInputsEqual(nextInputs, prevEffect.inputs)) {
+
+      // 都相同的 话  NoHookEffect = 0
+      // 其实就是在componentUpdateQueue 构建 effect 的循环链表
       pushEffect(NoHookEffect, create, destroy, nextInputs);
       return;
     }
   }
 
+  // 不相同 或者 是第一次渲染
   currentlyRenderingFiber.effectTag |= fiberEffectTag;
+
+  // hookEffectTag
   workInProgressHook.memoizedState = pushEffect(
     hookEffectTag,
     create,

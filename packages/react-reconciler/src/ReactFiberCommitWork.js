@@ -226,6 +226,7 @@ function commitBeforeMutationLifeCycles(
     case FunctionComponent:
     case ForwardRef:
     case SimpleMemoComponent: {
+      // 这里执行的 commitHookEffectList 没有任何一个 effectTag 会执行  里面的 destroy 和 create 
       commitHookEffectList(UnmountSnapshot, NoHookEffect, finishedWork);
       return;
     }
@@ -307,6 +308,7 @@ function commitBeforeMutationLifeCycles(
   }
 }
 
+// 根据 tag 处理执行 effect  中该执行什么函数
 function commitHookEffectList(
   unmountTag: number,
   mountTag: number,
@@ -322,7 +324,9 @@ function commitHookEffectList(
     let effect = firstEffect;
     do {
       if ((effect.tag & unmountTag) !== NoHookEffect) {
-        // Unmount
+        // Unmount  卸载
+        // 会判断有没有 unmountTag 有的话调用 destroy
+        // destroy 就是 useEffect 的第一个参数中 返回的 方法
         const destroy = effect.destroy;
         effect.destroy = null;
         if (destroy !== null) {
@@ -330,7 +334,8 @@ function commitHookEffectList(
         }
       }
       if ((effect.tag & mountTag) !== NoHookEffect) {
-        // Mount
+        // Mount 挂载
+        // 判断是否有 mountTag
         const create = effect.create;
         let destroy = create();
         if (typeof destroy !== 'function') {
