@@ -168,6 +168,8 @@ export function finishHooks(
     // work-in-progress hooks and applying the additional updates on top. Keep
     // restarting until no more updates are scheduled.
     didScheduleRenderPhaseUpdate = false;
+    // 记录一个rerender的数值， 避免无限循环更新   
+    // 要避免直接在 functionComponent 直接调用更新
     numberOfReRenders += 1;
 
     // Start over from the beginning of the list
@@ -274,12 +276,13 @@ function cloneHook(hook: Hook): Hook {
 }
 
 function createWorkInProgressHook(): Hook {
-  // 第一次进来是 workInProgressHook = null  
+  // 第一次(第一个hook)进来是 workInProgressHook = null  
   // 因为 上一次 hook functionConponent 的调用 会把全局变量 workInProgressHook 置空
-  // 所以 执行 任意一个hook functionConponent 调用的 第一个 hook api  workInProgressHook 肯定是等于null
+  // 所以 执行 任意一个hook functionConponent 调用的 !第一个! hook api  workInProgressHook 肯定是等于null
   if (workInProgressHook === null) {
     // This is the first hook in the list
     if (firstWorkInProgressHook === null) {
+      // 此hookFunctionComponent 第一次调用 hook API 都进入这个判断
       isReRender = false;
       currentHook = firstCurrentHook;
       if (currentHook === null) {
@@ -287,11 +290,13 @@ function createWorkInProgressHook(): Hook {
         // 当前 hook functionConponent 第一调用 hook api  因为workInProgressHook 链为空，这里会新创建一个 hook 对象
         workInProgressHook = createHook();
       } else {
+
         // Clone the current hook.
         workInProgressHook = cloneHook(currentHook);
       }
       firstWorkInProgressHook = workInProgressHook;
     } else {
+      // 假如 是渲染过程中 产生的更新 会重现渲染
       // There's already a work-in-progress. Reuse it.
       isReRender = true;
       currentHook = firstCurrentHook;
@@ -372,7 +377,7 @@ export function useReducer<S, A>(
   let queue: UpdateQueue<A> | null = (workInProgressHook.queue: any);
   if (queue !== null) {
     // Already have a queue, so this is an update.
-    // isReRender 的 赋值 可以看 createWorkInProgressHook
+    // isReRender 的 赋值 可以看 createWorkInProgressHook 看 isReRender = true 情况
     if (isReRender) {
       // 是否是在 render 的过程中创建的 update
       // This is a re-render. Apply the new render phase updates to the previous
@@ -380,11 +385,16 @@ export function useReducer<S, A>(
       const dispatch: Dispatch<A> = (queue.dispatch: any);
       if (renderPhaseUpdates !== null) {
         // Render phase updates are stored in a map of queue -> linked list
+        // renderPhaseUpdates 也是在 dispatchAction 的时候进行设置
         const firstRenderPhaseUpdate = renderPhaseUpdates.get(queue);
         if (firstRenderPhaseUpdate !== undefined) {
+          // isReRender = true  并且 renderPhaseUpdates = true  在渲染过程产生 update
+          // 这里没有expirationTime 比较 说明 要直接进行更新的 所有的update会立马被执行
+
           renderPhaseUpdates.delete(queue);
           let newState = workInProgressHook.memoizedState;
           let update = firstRenderPhaseUpdate;
+          // do while 循环 处理 update 计算 newState
           do {
             // Process this render phase update. We don't have to check the
             // priority because it will always be the same as the current
@@ -413,7 +423,7 @@ export function useReducer<S, A>(
     // The last update in the entire queue
     const last = queue.last;
     // The last update that is part of the base state.
-    // 第二次api 掉用进来 baseUpdate = null
+    // 第二次api 调用进来 baseUpdate = null
     const baseUpdate = workInProgressHook.baseUpdate;
 
     // Find the first unprocessed update.
@@ -461,7 +471,7 @@ export function useReducer<S, A>(
           // 需要被更新
           const action = update.action;
           // 会计算出一个新的state
-          // action 是什么？
+          // action 是什么？ action 是 string
           newState = reducer(newState, action);
         }
         prevUpdate = update;
@@ -673,7 +683,7 @@ export function useMemo<T>(
   return nextValue;
 }
 
-// 派发行为
+// 派发行为 创建 dispatchAction 并且放到 hook对象 queue上
 function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
   invariant(
     numberOfReRenders < RE_RENDER_LIMIT,
@@ -690,6 +700,8 @@ function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
     // This is a render phase update. Stash it in a lazily-created map of
     // queue -> linked list of updates. After this render pass, we'll restart
     // and apply the stashed updates on top of the work-in-progress hook.
+    // 渲染过程中 产生更新 这里又会 影响 finishHook 的执行 会循环 判断didScheduleRenderPhaseUpdate 调用 functionComponent 
+    // 然后在 createWorkInProgressHook 在进行特殊的判断
     didScheduleRenderPhaseUpdate = true;
     const update: Update<A> = {
       expirationTime: renderExpirationTime,
@@ -705,6 +717,7 @@ function dispatchAction<A>(fiber: Fiber, queue: UpdateQueue<A>, action: A) {
     } else {
       // Append the update to the end of the list.
       let lastRenderPhaseUpdate = firstRenderPhaseUpdate;
+      // 处理链表
       while (lastRenderPhaseUpdate.next !== null) {
         lastRenderPhaseUpdate = lastRenderPhaseUpdate.next;
       }
