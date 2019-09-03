@@ -372,7 +372,9 @@ function commitHookEffectList(
 }
 
 export function commitPassiveHookEffects(finishedWork: Fiber): void {
+  // 第一遍是对 useEffect 执行 destroy  
   commitHookEffectList(UnmountPassive, NoHookEffect, finishedWork);
+  // 第二遍是对 useEffect 执行 create
   commitHookEffectList(NoHookEffect, MountPassive, finishedWork);
 }
 

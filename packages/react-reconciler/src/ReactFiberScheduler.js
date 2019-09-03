@@ -508,9 +508,9 @@ function commitAllLifeCycles(
     }
 
     if (enableHooks && effectTag & Passive) {
+      // 被赋值  判断是否有 Passive Effect
       rootWithPendingPassiveEffects = finishedRoot;
     }
-
     nextEffect = nextEffect.nextEffect;
   }
 }
@@ -526,6 +526,7 @@ function commitPassiveEffects(root: FiberRoot, firstEffect: Fiber): void {
 
   let effect = firstEffect;
   do {
+    // 循环所有的 有sideEffect 的 寻找有 passsive 
     if (effect.effectTag & Passive) {
       let didError = false;
       let error;
@@ -537,6 +538,7 @@ function commitPassiveEffects(root: FiberRoot, firstEffect: Fiber): void {
         }
       } else {
         try {
+          // 执行commitPassiveHookEffects
           commitPassiveHookEffects(effect);
         } catch (e) {
           didError = true;
@@ -776,10 +778,12 @@ function commitRoot(root: FiberRoot, finishedWork: Fiber): void {
     firstEffect !== null &&
     rootWithPendingPassiveEffects !== null
   ) {
+    // rootWithPendingPassiveEffects 看下这个是什么时候被赋值
     // This commit included a passive effect. These do not need to fire until
     // after the next paint. Schedule an callback to fire them in an async
     // event. To ensure serial execution, the callback will be flushed early if
     // we enter rootWithPendingPassiveEffects commit phase before then.
+    // 这块是和 useEffect 有关    passive：被动
     let callback = commitPassiveEffects.bind(null, root, firstEffect);
     if (enableSchedulerTracing) {
       // TODO: Avoid this extra callback by mutating the tracing ref directly,
@@ -787,7 +791,9 @@ function commitRoot(root: FiberRoot, finishedWork: Fiber): void {
       // here because that code is still in flux.
       callback = Schedule_tracing_wrap(callback);
     }
-    passiveEffectCallbackHandle = Schedule_scheduleCallback(callback);
+    // Schedule_scheduleCallback  异步调度过程中，Schedule 那个包中下面的 scheduleCallback
+    // 说明这是一个异步的过程， 至少要等到这次 渲染完成之后才会执行 callback(就是commitPassiveEffects)
+    passiveEffectCallbackHandle = Schedule_scheduleCallback(callback);  
     passiveEffectCallback = callback;
   }
 

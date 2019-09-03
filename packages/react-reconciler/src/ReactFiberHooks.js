@@ -348,6 +348,7 @@ export function useContext<T>(
   // Ensure we're in a function component (class components support only the
   // .unstable_read() form)
   resolveCurrentlyRenderingFiber();
+  // readContext 是和 classsComponent 的 readContext 相同
   return readContext(context, observedBits);
 }
 
@@ -559,10 +560,12 @@ export function useRef<T>(initialValue: T): {current: T} {
   let ref;
 
   if (workInProgressHook.memoizedState === null) {
+    // 只是 赋值了一个具有current属性的对象 我们可以更新这个属性上的东西
     ref = {current: initialValue};
     if (__DEV__) {
       Object.seal(ref);
     }
+    // 会记录在 memoizedState 上
     workInProgressHook.memoizedState = ref;
   } else {
     ref = workInProgressHook.memoizedState;
@@ -632,6 +635,7 @@ export function useImperativeMethods<T>(
   inputs: Array<mixed> | void | null,
 ): void {
   // TODO: If inputs are provided, should we skip comparing the ref itself?
+  // 对比 inputs
   const nextInputs =
     inputs !== null && inputs !== undefined
       ? inputs.concat([ref])
@@ -640,15 +644,19 @@ export function useImperativeMethods<T>(
   // TODO: I've implemented this on top of useEffect because it's almost the
   // same thing, and it would require an equal amount of code. It doesn't seem
   // like a common enough use case to justify the additional size.
+  // 调用 useLayoutEffect 
   useLayoutEffect(() => {
+    // 在 create 的时候 调用 这个 ref
     if (typeof ref === 'function') {
       const refCallback = ref;
       const inst = create();
+      // ref 执行 create 返回的内容
       refCallback(inst);
       return () => refCallback(null);
     } else if (ref !== null && ref !== undefined) {
       const refObject = ref;
       const inst = create();
+      // 如果是有currents 属性的对象  就把 current 更新成为 用这个 方法 返回的inst
       refObject.current = inst;
       return () => {
         refObject.current = null;
@@ -670,11 +678,15 @@ export function useCallback<T>(
   const prevState = workInProgressHook.memoizedState;
   if (prevState !== null) {
     const prevInputs = prevState[1];
+    // 也是对比 inputs
     if (areHookInputsEqual(nextInputs, prevInputs)) {
+      // 若果对比一样  就直接返回 memoizedState
       return prevState[0];
     }
   }
+  // 若果不同 就 更新 memoizedState
   workInProgressHook.memoizedState = [callback, nextInputs];
+  // 并且返回新的 callback
   return callback;
 }
 
@@ -696,6 +708,9 @@ export function useMemo<T>(
     }
   }
 
+  // 不同就 执行nextCreate() 作为新的结果  作为返回内容    
+  // 与useCallback的区别是 
+  // useCallback是不执行 而是将函数作为值存储在memoizedState 中
   const nextValue = nextCreate();
   workInProgressHook.memoizedState = [nextValue, nextInputs];
   return nextValue;
